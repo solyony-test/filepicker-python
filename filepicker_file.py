@@ -35,6 +35,20 @@ class FilepickerFile(object):
         except ValueError:
             return False
 
+    def delete(self):
+        response = requests.delete(self.url)
+        return {response['ok'], response['reason']}
+
+    def download(self, destination_path):
+        with open(destination_path, 'wb') as f:
+            response = requests.get(self.url, stream=True)
+            if response.ok:
+                for chunk in response.iter_content(1024):
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            return {response['ok'], response['reason']}
+
     def __getattribute__(self, name):
         CASHABLE_ATTRS = ['metadata']
         if name in CASHABLE_ATTRS:
