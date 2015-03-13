@@ -1,6 +1,9 @@
 import mimetypes
 import json
 import re
+import hmac
+import hashlib
+import base64
 
 import requests
 
@@ -10,10 +13,11 @@ class FilepickerFile(object):
     FILE_API_URL = 'https://www.filepicker.io/api/file/'
 
     def __init__(self, handle=None, url=None, response_dict=None,
-                 api_key=None, **kwargs):
+                 api_key=None, security_secret=None, **kwargs):
 
         self.metadata = None
         self.converted = kwargs.get('converted', False)
+        self.policies = {}
         if handle:
             self.__init_with_handle_or_url(handle=handle)
         elif url:
@@ -25,6 +29,7 @@ class FilepickerFile(object):
 
         self.handle = handle if handle else self.__get_handle()
         self.set_api_key(api_key)
+        self.set_security_secret(security_secret)
 
     #def __str__(self):
     #    return self.url
@@ -51,6 +56,12 @@ class FilepickerFile(object):
         Set API key for FilepickerFile object
         """
         self.api_key = api_key
+
+    def set_security_secret(self, secret):
+        """
+        Set security secret for FilepickerFile object
+        """
+        self.security_secret = secret
 
     def update_metadata(self):
         response = requests.get(self.url + '/metadata')
@@ -112,6 +123,17 @@ class FilepickerFile(object):
             return self.__post(url)
         url = '{}/convert?{}'.format(self.url, '&'.join(c_opts))
         return FilepickerFile(url=url, converted=True)
+
+    def add_policy(self, name, policy):
+        self.policies[name] = policy
+
+    def get_auth_url(self, policy_name):
+        json_policy = json.dumps(self.policies[policy_name])
+        policy = base64.urlsafe_b64encode(json_policy)
+        signature = hmac.new(self.security_secret, policy,
+                             hashlib.sha256).hexdigest()
+        return self.url + '?signature={}&policy={}'.format(signature, policy)
+
 
     def __post(self, url, **kwargs):
         try:
