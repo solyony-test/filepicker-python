@@ -21,46 +21,30 @@ class FilepickerClient(object):
     def set_store(self, store):
         self.store = store
 
-    def store_from_url(self, url, **kwargs):
-        data = {'url': url}
-        store = kwargs.get('store', self.store)
-        return self.__post(store, data=data, **kwargs)
+    def store_from_url(self, url, store=None, **kwargs):
+        params = {'url': url}
+        if kwargs:
+            params.update(kwargs)
+        return self.__post(store, params)
 
-    def store_local_file(self, filepath, **kwargs):
+    def store_local_file(self, filepath, store=None, **kwargs):
         files = {'fileUpload': open(filepath, 'rb')}
-        payload = {'mimetype': mimetypes.guess_type(filepath)}
-        store = kwargs.get('store', self.store)
-        return self.__post(store, data=payload, files=files, **kwargs)
+        params = {'mimetype': mimetypes.guess_type(filepath)}
+        if kwargs:
+            params.update(kwargs)
+        return self.__post(store, params, files)
 
-    def __post(self, store, **post_data):
-        post_url = '{}/store/{}?key={}'.format(
-                   self.API_URL, store, self.api_key)
-        options = self.__storing_options(**post_data)
-        post_url += options
-
-        self.__debug_msg('POST url: {}\nPOST data: {}'.format(
-                             post_url, post_data))
-
-        response = requests.post(
-                       post_url,
-                       data = post_data.get('data', None),
-                       files = post_data.get('files', None)
-                   )
+    def __post(self, store, params, files=None):
+        store = store or self.store
+        post_url = '{}/store/{}'.format(self.API_URL, store)
+        params['key'] = self.api_key
+        response = requests.post(post_url, params=params, files=files)
         try:
             response_dict = json.loads(response.text)
             return FilepickerFile(response_dict=response_dict,
                                   api_key=self.api_key)
         except ValueError:
             return response
-
-    def __storing_options(self, **options):
-        result = ''
-        supported_options = ['filename',  'mimetype', 'path',
-                             'container', 'access',   'base64decode']
-        for option in supported_options:
-            if options.get(option, False):
-                result += '&{}={}'.format(option, options[option])
-        return result
 
     def __debug_msg(self, msg):
         if self.debug:

@@ -4,6 +4,7 @@ import re
 import hmac
 import hashlib
 import base64
+import urllib
 
 import requests
 
@@ -13,11 +14,12 @@ class FilepickerFile(object):
     FILE_API_URL = 'https://www.filepicker.io/api/file/'
 
     def __init__(self, handle=None, url=None, response_dict=None,
-                 api_key=None, security_secret=None, **kwargs):
+                 api_key=None, security_secret=None, policies={},
+                 **kwargs):
 
         self.metadata = None
         self.converted = kwargs.get('converted', False)
-        self.policies = {}
+        self.policies = policies
         if handle:
             self.__init_with_handle_or_url(handle=handle)
         elif url:
@@ -70,17 +72,21 @@ class FilepickerFile(object):
         except ValueError:
             self.metadata = {}
 
-    def delete(self):
+    def delete(self, policy_name=None):
         """
         Delete file. Returns requests.Response object.
         """
         if self.api_key is None:
             return "Please set API key first"
-        return requests.delete(self.url + '?key=' + self.api_key)
+        params = {'key': self.api_key}
+        if policy_name:
+            params.update(self.__signature_params(policy_name))
+        return requests.delete(self.url, params=params)
 
-    def download(self, destination_path):
+    def download(self, destination_path, policy_name=None):
+        url = self.get_signed_url(policy_name) if policy_name else self.url
         with open(destination_path, 'wb') as f:
-            response = requests.get(self.url, stream=True)
+            response = requests.get(url, stream=True)
             if response.ok:
                 for chunk in response.iter_content(1024):
                     if not chunk:
@@ -88,60 +94,61 @@ class FilepickerFile(object):
                     f.write(chunk)
             return response
 
-    def overwrite(self, url=None, path=None):
-        data, files = None, None
+    def overwrite(self, url=None, filepath=None, policy_name=None):
+        params, files = None, None
         if url:
-            data = {'url': url}
-        if path:
-            files = {'fileUpload': open(path, 'rb')}
-            data = {'mimetype': mimetypes.guess_type(path)}
-        return self.__post(self.url, data=data, files=files)
+            params = {'url': url}
+        if filepath:
+            files = {'fileUpload': open(filepath, 'rb')}
+            params = {'mimetype': mimetypes.guess_type(filepath)}
+        if policy_name:
+            params.update(self.__signature_params(policy_name))
+        return self.__post(self.url, files=files, params=params)
 
-    def convert(self, **options):
+    def convert(self, policy_name=None, **kwargs):
+        if self.converted:
+            return "File already converted"
+
         storing_options = ['filename', 'storeLocation', 'storePath',
                            'storeContainer', 'storeAccess']
+        if policy_name:
+            kwargs.update(self.__signature_params(policy_name))
 
-        conversions = ['w', 'h', 'fit', 'crop', 'allign', 'format',
-                       'filter', 'blurAmount', 'sharpenAmount',
-                       'compress', 'quality', 'rotate',
-                       'watermark', 'watersize', 'waterposition']
-        c_opts = []
-        for c in conversions:
-            if options.get(c, False):
-                c_opts.append('{}={}'.format(c, options[c]))
-
-        s_opts = []
-        for o in storing_options:
-            if options.get(o, False):
-                s_opts.append('{}={}'.format(o, options[o]))
-
-        if s_opts:
+        if set(storing_options) & set(kwargs.keys()):
             if self.api_key is None:
                 return "Please set API key first"
-            url = '{}/convert?{}&{}?key={}'.format(self.url, '&'.join(c_opts),
-                               '&'.join(s_opts), self.api_key)
-            return self.__post(url)
-        url = '{}/convert?{}'.format(self.url, '&'.join(c_opts))
+            kwargs['key'] = self.api_key
+            return self.__post(self.url + '/convert', params=kwargs)
+
+        url = requests.get(self.url + '/convert', params=kwargs).url
         return FilepickerFile(url=url, converted=True)
 
     def add_policy(self, name, policy):
+        if policy.get('handle'):
+            policy.pop('handle')
         self.policies[name] = policy
 
-    def get_auth_url(self, policy_name):
+    def get_signed_url(self, policy_name):
+        params = self.__signature_params(policy_name)
+        return self.url + '?' + urllib.urlencode(params)
+
+    def __signature_params(self, policy_name):
+        policy = self.policies[policy_name].copy()
+        policy['handle'] = self.handle
         json_policy = json.dumps(self.policies[policy_name])
-        policy = base64.urlsafe_b64encode(json_policy)
-        signature = hmac.new(self.security_secret, policy,
+        policy_enc = base64.urlsafe_b64encode(json_policy)
+        signature = hmac.new(self.security_secret, policy_enc,
                              hashlib.sha256).hexdigest()
-        return self.url + '?signature={}&policy={}'.format(signature, policy)
+        return {'signature': signature, 'policy': policy}
 
-
-    def __post(self, url, **kwargs):
+    def __post(self, url, files=None, **kwargs):
         try:
-            r = requests.post(url,
-                              data=kwargs.get('data'),
-                              files=kwargs.get('files'))
+            r = requests.post(url, files=files, params=kwargs.get('params'))
             rd = json.loads(r.text)
-            return FilepickerFile(response_dict=rd, api_key=self.api_key)
+            return FilepickerFile(
+                    response_dict=rd, api_key=self.api_key,
+                    security_secret=self.security_secret,
+                    policies=self.policies)
         except requests.exceptions.ConnectionError as e:
             raise e
 
