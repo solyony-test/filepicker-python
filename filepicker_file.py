@@ -135,11 +135,11 @@ class FilepickerFile(object):
     def __signature_params(self, policy_name):
         policy = self.policies[policy_name].copy()
         policy['handle'] = self.handle
-        json_policy = json.dumps(self.policies[policy_name])
-        policy_enc = base64.urlsafe_b64encode(json_policy)
+
+        policy_enc = base64.urlsafe_b64encode(json.dumps(policy))
         signature = hmac.new(self.security_secret, policy_enc,
                              hashlib.sha256).hexdigest()
-        return {'signature': signature, 'policy': policy}
+        return {'signature': signature, 'policy': policy_enc}
 
     def __post(self, url, files=None, **kwargs):
         try:
