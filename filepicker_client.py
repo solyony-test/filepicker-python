@@ -1,12 +1,10 @@
 import mimetypes
 import json
-import base64
-import hmac
-import hashlib
 
 import requests
 
 from filepicker_file import FilepickerFile
+from filepicker_policy import FilepickerPolicy
 
 class FilepickerClient(object):
 
@@ -35,28 +33,22 @@ class FilepickerClient(object):
     def store_from_url(self, url, store=None, policy_name=None, **kwargs):
         params = {'url': url}
         if policy_name:
-            params.update(self.__signature_params(policy_name))
+            params.update(self.policies[policy_name].signature_params())
         if kwargs:
             params.update(kwargs)
         return self.__post(store, params)
 
-    def store_local_file(self, filepath, store=None, **kwargs):
+    def store_local_file(self, filepath, store=None, policy_name=None, **kwargs):
         files = {'fileUpload': open(filepath, 'rb')}
         params = {'mimetype': mimetypes.guess_type(filepath)}
+        if policy_name:
+            params.update(self.policies[policy_name].signature_params())
         if kwargs:
             params.update(kwargs)
         return self.__post(store, params, files)
 
     def add_policy(self, name, policy):
-        self.policies[name] = policy
-
-    def __signature_params(self, policy_name):
-        policy = self.policies[policy_name].copy()
-
-        policy_enc = base64.urlsafe_b64encode(json.dumps(policy))
-        signature = hmac.new(self.security_secret, policy_enc,
-                             hashlib.sha256).hexdigest()
-        return {'signature': signature, 'policy': policy_enc}
+        self.policies[name] = FilepickerPolicy(policy, self.security_secret)
 
     def __post(self, store, params, files=None):
         store = store or self.store

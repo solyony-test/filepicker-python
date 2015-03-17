@@ -1,13 +1,11 @@
 import mimetypes
 import json
 import re
-import hmac
-import hashlib
-import base64
 import urllib
 
 import requests
 
+from filepicker_policy import FilepickerPolicy
 
 class FilepickerFile(object):
 
@@ -80,7 +78,7 @@ class FilepickerFile(object):
             return "Please set API key first"
         params = {'key': self.api_key}
         if policy_name:
-            params.update(self.__signature_params(policy_name))
+            params.update(self.policies[policy_name].signature_params())
         return requests.delete(self.url, params=params)
 
     def download(self, destination_path, policy_name=None):
@@ -102,7 +100,7 @@ class FilepickerFile(object):
             files = {'fileUpload': open(filepath, 'rb')}
             params = {'mimetype': mimetypes.guess_type(filepath)}
         if policy_name:
-            params.update(self.__signature_params(policy_name))
+            params.update(self.policies[policy_name].signature_params())
         return self.__post(self.url, files=files, params=params)
 
     def convert(self, policy_name=None, **kwargs):
@@ -112,7 +110,7 @@ class FilepickerFile(object):
         storing_options = ['filename', 'storeLocation', 'storePath',
                            'storeContainer', 'storeAccess']
         if policy_name:
-            kwargs.update(self.__signature_params(policy_name))
+            kwargs.update(self.policies[policy_name].signature_params())
 
         if set(storing_options) & set(kwargs.keys()):
             if self.api_key is None:
@@ -124,22 +122,11 @@ class FilepickerFile(object):
         return FilepickerFile(url=url, converted=True)
 
     def add_policy(self, name, policy):
-        if policy.get('handle'):
-            policy.pop('handle')
-        self.policies[name] = policy
+        self.policies[name] = FilepickerPolicy(policy, self.security_secret)
 
     def get_signed_url(self, policy_name):
-        params = self.__signature_params(policy_name)
+        params = self.policies[policy_name].signature_params()
         return self.url + '?' + urllib.urlencode(params)
-
-    def __signature_params(self, policy_name):
-        policy = self.policies[policy_name].copy()
-        policy['handle'] = self.handle
-
-        policy_enc = base64.urlsafe_b64encode(json.dumps(policy))
-        signature = hmac.new(self.security_secret, policy_enc,
-                             hashlib.sha256).hexdigest()
-        return {'signature': signature, 'policy': policy_enc}
 
     def __post(self, url, files=None, **kwargs):
         try:
