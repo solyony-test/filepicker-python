@@ -6,12 +6,12 @@ import requests
 from filepicker_file import FilepickerFile
 from filepicker_policy import FilepickerPolicy
 
+
 class FilepickerClient(object):
 
     API_URL = 'https://www.filepicker.io/api'
 
-    def __init__(self, api_key=None, store='S3', security_secret=None,
-                 debug=False):
+    def __init__(self, api_key=None, store='S3', security_secret=None):
         self.set_api_key(api_key)
         self.set_store(store)
         self.set_security_secret(security_secret)
@@ -25,9 +25,6 @@ class FilepickerClient(object):
         self.store = store
 
     def set_security_secret(self, secret):
-        """
-        Set security secret for FilepickerClient object
-        """
         self.security_secret = secret
 
     def store_from_url(self, url, store=None, policy_name=None, **kwargs):
@@ -63,8 +60,4 @@ class FilepickerClient(object):
                                   policies=self.policies)
         except ValueError:
             return response
-
-    def __debug_msg(self, msg):
-        if self.debug:
-            print msg
 
