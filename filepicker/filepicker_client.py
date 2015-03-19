@@ -12,31 +12,31 @@ class FilepickerClient(object):
 
     API_URL = 'https://www.filepicker.io/api'
 
-    def __init__(self, api_key=None, store='S3', app_secret=None):
+    def __init__(self, api_key=None, storage='S3', app_secret=None):
         self.set_api_key(api_key)
-        self.set_store(store)
+        self.set_storage(storage)
         self.set_app_secret(app_secret)
         self.policies = {}
 
     def set_api_key(self, api_key):
         self.api_key = api_key
 
-    def set_store(self, store):
-        self.store = store
+    def set_storage(self, storage):
+        self.storage = storage
 
     def set_app_secret(self, secret):
         self.app_secret = secret
 
-    def store_from_url(self, url, store=None, policy_name=None, **kwargs):
+    def store_from_url(self, url, storage=None, policy_name=None, **kwargs):
         params = {}
         data = {'url': url}
         if policy_name:
             params.update(self.policies[policy_name].signature_params())
         if kwargs:
             params.update(kwargs)
-        return self.__post(store, data=data, params=params)
+        return self.__post(storage, data=data, params=params)
 
-    def store_local_file(self, filepath, store=None,
+    def store_local_file(self, filepath, storage=None,
                          policy_name=None, **kwargs):
         filename = os.path.basename(filepath)
         mimetype = mimetypes.guess_type(filepath)
@@ -46,16 +46,16 @@ class FilepickerClient(object):
             params.update(self.policies[policy_name].signature_params())
         if kwargs:
             params.update(kwargs)
-        return self.__post(store, files=files, params=params)
+        return self.__post(storage, files=files, params=params)
 
     def add_policy(self, name, policy):
         if self.app_secret is None:
             raise Exception("Please set app secret first")
         self.policies[name] = FilepickerPolicy(policy, self.app_secret)
 
-    def __post(self, store, data=None, files=None, params=None):
-        store = store or self.store
-        post_url = '{}/store/{}'.format(self.API_URL, store)
+    def __post(self, storage, data=None, files=None, params=None):
+        storage = storage or self.storage
+        post_url = '{}/store/{}'.format(self.API_URL, storage)
         params['key'] = self.api_key
         response = requests.post(post_url, data=data, files=files,
                                  params=params)

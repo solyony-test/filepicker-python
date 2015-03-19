@@ -21,11 +21,11 @@ class FilepickerPolicyTest(unittest.TestCase):
 
     def setUp(self):
         self.policy = FilepickerPolicy(
-                policy = {'handle': self.FILEHANDLE,'expiry': 1508141504},
-                app_secret = self.APP_SECRET)
+                policy={'handle': self.FILEHANDLE, 'expiry': 1508141504},
+                app_secret=self.APP_SECRET)
 
     def test_signature_params(self):
-        p = {'handle': self.FILEHANDLE,'expiry': 1508141504}
+        p = {'handle': self.FILEHANDLE, 'expiry': 1508141504}
         json_p = json.dumps(p)
         expected_policy = base64.urlsafe_b64encode(json_p)
         expected_signature = hmac.new(self.APP_SECRET, expected_policy,
@@ -50,12 +50,13 @@ class FilepickerClientTest(unittest.TestCase):
     def test_api_key(self):
         self.assertEqual(self.client.api_key, 'SECRET_API_KEY')
 
-    def test_default_store(self):
-        self.assertEqual(self.client.store, 'S3')
+    def test_default_storage(self):
+        self.assertEqual(self.client.storage, 'S3')
 
-    def test_set_store(self):
-        self.client.set_store('Azure')
-        self.assertEqual(self.client.store, 'Azure')
+    def test_set_storage(self):
+        self.assertEqual(self.client.storage, 'S3')
+        self.client.set_storage('Azure')
+        self.assertEqual(self.client.storage, 'Azure')
 
     def test_default_app_secret(self):
         self.assertEqual(self.client.app_secret, None)
@@ -96,6 +97,21 @@ class FilepickerClientTest(unittest.TestCase):
         self.assertEqual(file.mimetype, self.UPLOADED_FILE['type'])
         self.assertEqual(file.filename, self.UPLOADED_FILE['filename'])
 
+    def test_storage_param(self):
+        @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
+                  scheme='https')
+        def api_url(url, request):
+            if 'default.jpg' in request.body:
+                self.assertEqual(url.path, '/api/store/S3')
+            else:
+                self.assertEqual(url.path, '/api/store/azure')
+            return json.dumps(self.UPLOADED_FILE)
+
+        with HTTMock(api_url):
+            self.client.store_from_url('example.com/default.jpg')
+            self.client.store_from_url('example.com/another.jpg',
+                                       storage='azure')
+
     def test_add_policy(self):
         self.assertEqual(len(self.client.policies), 0)
         self.assertIsNone(self.client.app_secret)
@@ -131,7 +147,7 @@ class FilepickerClientTest(unittest.TestCase):
 
         with HTTMock(require_signature):
             file = self.client.store_from_url('filepicker.io/test.jpg',
-                                                  policy_name='test_policy')
+                                              policy_name='test_policy')
 
         self.assertIsInstance(file, FilepickerFile)
         self.assertEqual(file.url, self.UPLOADED_FILE['url'])
@@ -150,7 +166,7 @@ class FilepickerClientTest(unittest.TestCase):
 
         self.assertEqual(file.api_key, self.client.api_key)
         self.assertEqual(file.app_secret, self.client.app_secret)
-        
+
         secret_before = self.client.app_secret
         self.client.set_app_secret('verysecuresecret')
         secret_after = self.client.app_secret
@@ -252,6 +268,7 @@ class FilepickerFileTest(unittest.TestCase):
 
     def test_download(self):
         dest_path = 'delete_this_test_leftover'
+
         @urlmatch(netloc=r'www\.filepicker\.io',
                   path='/api/file/{}'.format(self.HANDLE),
                   method='get', scheme='https')
@@ -284,7 +301,7 @@ class FilepickerFileTest(unittest.TestCase):
             return secured_msg
 
         with HTTMock(download_file):
-            self.file.download(dest_path) # download with no policy
+            self.file.download(dest_path)  # download with no policy
 
         try:
             with file(dest_path) as f:
@@ -317,7 +334,7 @@ class FilepickerFileTest(unittest.TestCase):
                           request.body)
             return json.dumps(
                     {"url": "https://www.filepicker.io/api/file/ZXC",
-                    "filename": "name.jpg"})
+                     "filename": "name.jpg"})
 
         with HTTMock(overwrite_file):
             self.file.overwrite(url='somenew.url/new.png')
@@ -329,7 +346,7 @@ class FilepickerFileTest(unittest.TestCase):
             self.assertIn('name="fileUpload"', request.body)
             return json.dumps(
                     {"url": "https://www.filepicker.io/api/file/ZXC",
-                    "filename": "name.jpg"})
+                     "filename": "name.jpg"})
 
         with HTTMock(overwrite_file):
             self.file.overwrite(filepath=__file__)
@@ -342,7 +359,7 @@ class FilepickerFileTest(unittest.TestCase):
         converted_file = self.file.convert(filter='blur', blurAmount=2, w=20)
         self.assertEqual(
                 converted_file.url,
-                'https://www.filepicker.io/api/file/' + \
+                'https://www.filepicker.io/api/file/' +
                 'XXMadeUpHandleXX/convert?filter=blur&blurAmount=2&w=20')
         self.assertTrue(converted_file.temporary)
 
@@ -391,7 +408,7 @@ class FilepickerFileTest(unittest.TestCase):
                   method='post', scheme='https')
         def convert_and_store(url, request):
             return json.dumps(fp_response)
-        
+
         secret_before = self.file.app_secret
         self.file.set_app_secret('APPSECRET')
         secret_after = self.file.app_secret
