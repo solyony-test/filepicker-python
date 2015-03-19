@@ -48,6 +48,7 @@ class FilepickerFile(object):
             self.url = self.FILE_API_URL + handle
         elif url:
             self.url = url
+        self.metadata = {}
 
     def __get_handle(self):
         try:
