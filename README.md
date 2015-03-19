@@ -132,8 +132,6 @@ To delete a file, your file object is required to have your API key set
 file.set_api_key('YOUR_API_KEY')
 ```
 
-[TODO] key inheritance
-
 ### Overwriting files
 
 You can upload your previously uploaded files with new ones
@@ -206,6 +204,25 @@ You can also generate file URLs with signature params:
 ```
 
 To learn more about our policies, please check out [our documentation](https://www.filepicker.com/documentation/file_processing/image_conversion/image)
+
+### API key, app secret and policy inheritance
+
+When you set API key, app secret or policies on FilepickerClient object, newly uploaded files will inherit them.
+The same thing applies when new files are created as a result of image conversion.
+
+```bash
+>>> client = FilepickerClient(api_key='API_KEY', app_secret='APP_SECRET')
+>>> f = client.store_from_url('http://bit.ly/1CzPVQp')
+>>> f.api_key
+'API_KEY'
+>>> f.app_secret
+'APP_SECRET'
+>>> f_conv = f.convert(w=100, storeLocation='S3')
+>>> f_conv.api_key
+'API_KEY'
+>>> f_conv.app_secret
+'APP_SECRET'
+```
 
 
 ## Contributing

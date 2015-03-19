@@ -6,14 +6,13 @@ import hashlib
 
 class FilepickerPolicy(object):
 
-    def __init__(self, policy, security_secret):
+    def __init__(self, policy, app_secret):
         self.policy = policy
-        self.security_secret = security_secret
+        self.app_secret = app_secret
 
     def signature_params(self):
         policy_enc = base64.urlsafe_b64encode(json.dumps(self.policy))
-        signature = hmac.new(self.security_secret,
+        signature = hmac.new(self.app_secret,
                              policy_enc,
                              hashlib.sha256).hexdigest()
         return {'signature': signature, 'policy': policy_enc}
-

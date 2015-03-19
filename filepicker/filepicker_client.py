@@ -12,10 +12,10 @@ class FilepickerClient(object):
 
     API_URL = 'https://www.filepicker.io/api'
 
-    def __init__(self, api_key=None, store='S3', security_secret=None):
+    def __init__(self, api_key=None, store='S3', app_secret=None):
         self.set_api_key(api_key)
         self.set_store(store)
-        self.set_security_secret(security_secret)
+        self.set_app_secret(app_secret)
         self.policies = {}
 
     def set_api_key(self, api_key):
@@ -24,8 +24,8 @@ class FilepickerClient(object):
     def set_store(self, store):
         self.store = store
 
-    def set_security_secret(self, secret):
-        self.security_secret = secret
+    def set_app_secret(self, secret):
+        self.app_secret = secret
 
     def store_from_url(self, url, store=None, policy_name=None, **kwargs):
         params = {}
@@ -49,9 +49,9 @@ class FilepickerClient(object):
         return self.__post(store, files=files, params=params)
 
     def add_policy(self, name, policy):
-        if self.security_secret is None:
-            raise Exception("Please set security secret first")
-        self.policies[name] = FilepickerPolicy(policy, self.security_secret)
+        if self.app_secret is None:
+            raise Exception("Please set app secret first")
+        self.policies[name] = FilepickerPolicy(policy, self.app_secret)
 
     def __post(self, store, data=None, files=None, params=None):
         store = store or self.store
@@ -63,8 +63,7 @@ class FilepickerClient(object):
             response_dict = json.loads(response.text)
             return FilepickerFile(response_dict=response_dict,
                                   api_key=self.api_key,
-                                  security_secret=self.security_secret,
+                                  app_secret=self.app_secret,
                                   policies=self.policies)
         except ValueError:
             return response
-

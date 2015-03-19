@@ -17,18 +17,18 @@ from filepicker_file import FilepickerFile
 class FilepickerPolicyTest(unittest.TestCase):
 
     FILEHANDLE = 'eyJleHBYYYYYYYYYNTA4MTQxNTXXXX'
-    SECURITY_SECRET = 'ABCABCABCABC123123123123XX'
+    APP_SECRET = 'ABCABCABCABC123123123123XX'
 
     def setUp(self):
         self.policy = FilepickerPolicy(
                 policy = {'handle': self.FILEHANDLE,'expiry': 1508141504},
-                security_secret = self.SECURITY_SECRET)
+                app_secret = self.APP_SECRET)
 
     def test_signature_params(self):
         p = {'handle': self.FILEHANDLE,'expiry': 1508141504}
         json_p = json.dumps(p)
         expected_policy = base64.urlsafe_b64encode(json_p)
-        expected_signature = hmac.new(self.SECURITY_SECRET, expected_policy,
+        expected_signature = hmac.new(self.APP_SECRET, expected_policy,
                                       hashlib.sha256).hexdigest()
         params = self.policy.signature_params()
 
@@ -57,12 +57,12 @@ class FilepickerClientTest(unittest.TestCase):
         self.client.set_store('Azure')
         self.assertEqual(self.client.store, 'Azure')
 
-    def test_default_security_secret(self):
-        self.assertEqual(self.client.security_secret, None)
+    def test_default_app_secret(self):
+        self.assertEqual(self.client.app_secret, None)
 
-    def test_set_security_secret(self):
-        self.client.set_security_secret('FooBarBaz')
-        self.assertEqual(self.client.security_secret, 'FooBarBaz')
+    def test_set_app_secret(self):
+        self.client.set_app_secret('FooBarBaz')
+        self.assertEqual(self.client.app_secret, 'FooBarBaz')
 
     def test_store_from_url(self):
 
@@ -98,11 +98,11 @@ class FilepickerClientTest(unittest.TestCase):
 
     def test_add_policy(self):
         self.assertEqual(len(self.client.policies), 0)
-        self.assertIsNone(self.client.security_secret)
+        self.assertIsNone(self.client.app_secret)
         self.assertRaises(Exception,
                           self.client.add_policy, 'zz', {'expiry': 1})
 
-        self.client.set_security_secret("SECRET")
+        self.client.set_app_secret("SECRET")
         self.client.add_policy('newpolicy', {'expiry': 150000000})
         self.assertEqual(len(self.client.policies), 1)
 
@@ -120,7 +120,7 @@ class FilepickerClientTest(unittest.TestCase):
             else:
                 return secured_msg
 
-        self.client.set_security_secret('verysecuresecret')
+        self.client.set_app_secret('verysecuresecret')
 
         self.client.add_policy('test_policy', {'expiry': 123})
         with HTTMock(require_signature):
@@ -139,6 +139,34 @@ class FilepickerClientTest(unittest.TestCase):
         self.assertEqual(file.mimetype, self.UPLOADED_FILE['type'])
         self.assertEqual(file.filename, self.UPLOADED_FILE['filename'])
 
+    def test_key_inheritance(self):
+        @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
+                  scheme='https')
+        def api_url(url, request):
+            return json.dumps(self.UPLOADED_FILE)
+
+        with HTTMock(api_url):
+            file = self.client.store_local_file(__file__)
+
+        self.assertEqual(file.api_key, self.client.api_key)
+        self.assertEqual(file.app_secret, self.client.app_secret)
+        
+        secret_before = self.client.app_secret
+        self.client.set_app_secret('verysecuresecret')
+        secret_after = self.client.app_secret
+
+        @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
+                  scheme='https')
+        def api_url(url, request):
+            return json.dumps(self.UPLOADED_FILE)
+
+        with HTTMock(api_url):
+            file = self.client.store_local_file(__file__)
+
+        self.assertNotEqual(secret_before, secret_after)
+        self.assertEqual(file.api_key, self.client.api_key)
+        self.assertEqual(file.app_secret, self.client.app_secret)
+
 
 class FilepickerFileTest(unittest.TestCase):
 
@@ -150,7 +178,7 @@ class FilepickerFileTest(unittest.TestCase):
     def test_init_with_handle(self):
         self.assertEqual(self.file.handle, self.HANDLE)
         self.assertEqual(self.file.url, self.file.FILE_API_URL + self.HANDLE)
-        self.assertEqual(self.file.metadata, None)
+        self.assertEqual(self.file.metadata, {})
 
     def test_init_with_url(self):
         url = 'https://www.filepicker.io/api/file/{}'.format(self.HANDLE)
@@ -158,7 +186,7 @@ class FilepickerFileTest(unittest.TestCase):
 
         self.assertEqual(file.url, url)
         self.assertEqual(file.handle, self.HANDLE)
-        self.assertEqual(file.metadata, None)
+        self.assertEqual(file.metadata, {})
 
     def test_init_with_dict(self):
         file_dict = {
@@ -181,13 +209,13 @@ class FilepickerFileTest(unittest.TestCase):
         self.file.set_api_key('my_key')
         self.assertEqual(self.file.api_key, 'my_key')
 
-    def test_set_security_secret(self):
-        self.assertEqual(self.file.security_secret, None)
-        self.file.set_security_secret('my_s')
-        self.assertEqual(self.file.security_secret, 'my_s')
+    def test_set_app_secret(self):
+        self.assertEqual(self.file.app_secret, None)
+        self.file.set_app_secret('my_s')
+        self.assertEqual(self.file.app_secret, 'my_s')
 
     def test_update_metada(self):
-        self.assertEqual(self.file.metadata, None)
+        self.assertEqual(self.file.metadata, {})
 
         @urlmatch(netloc=r'www\.filepicker\.io',
                   path='/api/file/{}/metadata'.format(self.HANDLE),
@@ -266,7 +294,7 @@ class FilepickerFileTest(unittest.TestCase):
             print("Looks like something went wrong: {}".format(e))
             self.assertTrue(False)
 
-        self.file.set_security_secret("SECRET")
+        self.file.set_app_secret("SECRET")
         self.file.add_policy('newpolicy', {'call': 'download', 'expiry': 999})
         with HTTMock(download_file):
             self.file.download(dest_path, policy_name='newpolicy')
@@ -346,18 +374,49 @@ class FilepickerFileTest(unittest.TestCase):
         self.assertEqual(converted_file.url, fp_response['url'])
         self.assertEqual(converted_file.handle, 'ZXC')
 
+    def test_key_inheritance(self):
+        self.file.set_api_key('APIKEY')
+        converted_file = self.file.convert(filter='blur', blurAmount=2, w=20)
+        self.assertEqual(self.file.api_key, converted_file.api_key)
+        self.assertEqual(self.file.app_secret, converted_file.app_secret)
+        self.assertEqual(self.file.policies, converted_file.policies)
+
+        fp_response = {
+            "size": 999, "type": "image/jpeg",
+            "url": "https://www.filepicker.io/api/file/ZXC",
+            "filename": "logo.jpg"}
+
+        @urlmatch(netloc=r'www\.filepicker\.io',
+                  path='/api/file/{}/convert'.format(self.HANDLE),
+                  method='post', scheme='https')
+        def convert_and_store(url, request):
+            return json.dumps(fp_response)
+        
+        secret_before = self.file.app_secret
+        self.file.set_app_secret('APPSECRET')
+        secret_after = self.file.app_secret
+
+        self.file.add_policy('foo', {'expiry': 15})
+        with HTTMock(convert_and_store):
+            converted_file = self.file.convert(w=10, storeLocation='Azure')
+
+        self.assertIn('foo', converted_file.policies)
+        self.assertNotEqual(secret_before, secret_after)
+        self.assertEqual(self.file.app_secret, converted_file.app_secret)
+        self.assertEqual(self.file.api_key, converted_file.api_key)
+
     def test_add_policy(self):
         self.assertTrue(len(self.file.policies) == 0)
-        self.assertIsNone(self.file.security_secret)
+        self.assertIsNone(self.file.app_secret)
         self.assertRaises(Exception,
                           self.file.add_policy, 'zz', {'expiry': 1})
 
-        self.file.set_security_secret('sec')
+        self.file.set_app_secret('sec')
         self.file.add_policy('new_policy', {'expiry': 1, 'call': 'read'})
         self.assertTrue(len(self.file.policies) == 1)
 
     def test_signed_url(self):
-        self.file.set_security_secret('sec')
+        self.file.set_app_secret('sec')
         self.file.add_policy('new_policy', {'expiry': 1, 'call': 'read'})
         url = self.file.get_signed_url('new_policy')
         self.assertRegexpMatches(

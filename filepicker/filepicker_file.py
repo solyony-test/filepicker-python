@@ -17,7 +17,7 @@ class FilepickerFile(object):
                       'location', 'path', 'container', 'key']
 
     def __init__(self, handle=None, url=None, response_dict=None,
-                 api_key=None, security_secret=None, policies={},
+                 api_key=None, app_secret=None, policies={},
                  **kwargs):
 
         self.metadata = None
@@ -35,7 +35,7 @@ class FilepickerFile(object):
         self.policies = policies
         self.handle = handle if handle else self.__get_handle()
         self.set_api_key(api_key)
-        self.set_security_secret(security_secret)
+        self.set_app_secret(app_secret)
 
     def __init_with_dict(self, d):
         self.url = d['url']
@@ -59,8 +59,8 @@ class FilepickerFile(object):
     def set_api_key(self, api_key):
         self.api_key = api_key
 
-    def set_security_secret(self, secret):
-        self.security_secret = secret
+    def set_app_secret(self, secret):
+        self.app_secret = secret
 
     def update_metadata(self, policy_name=None):
         params = dict((x, 'true') for x in self.METADATA_ATTRS)
@@ -119,12 +119,15 @@ class FilepickerFile(object):
             return self.__post(self.url + '/convert', params=kwargs)
 
         url = '{}/convert?{}'.format(self.url, urllib.urlencode(kwargs))
-        return FilepickerFile(url=url, temporary=True)
+        return FilepickerFile(url=url, api_key=self.api_key,
+                              app_secret=self.app_secret,
+                              policies=self.policies,
+                              temporary=True)
 
     def add_policy(self, name, policy):
-        if self.security_secret is None:
-            raise Exception("Please set security secret first")
-        self.policies[name] = FilepickerPolicy(policy, self.security_secret)
+        if self.app_secret is None:
+            raise Exception("Please set app secret first")
+        self.policies[name] = FilepickerPolicy(policy, self.app_secret)
 
     def get_signed_url(self, policy_name):
         params = self.policies[policy_name].signature_params()
@@ -137,7 +140,7 @@ class FilepickerFile(object):
             rd = json.loads(r.text)
             return FilepickerFile(
                     response_dict=rd, api_key=self.api_key,
-                    security_secret=self.security_secret,
+                    app_secret=self.app_secret,
                     policies=self.policies)
         except requests.exceptions.ConnectionError as e:
             raise e
@@ -149,4 +152,3 @@ class FilepickerFile(object):
                       .__getattribute__('metadata').get(name)
         else:
             return super(FilepickerFile, self).__getattribute__(name)
-
