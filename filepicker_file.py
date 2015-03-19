@@ -1,11 +1,13 @@
 import mimetypes
 import json
 import re
+import os
 import urllib
 
 import requests
 
 from filepicker_policy import FilepickerPolicy
+
 
 class FilepickerFile(object):
 
@@ -19,7 +21,7 @@ class FilepickerFile(object):
                  **kwargs):
 
         self.metadata = None
-        self.converted = kwargs.get('converted', False)
+        self.temporary = kwargs.get('temporary', False)
 
         if handle:
             self.__init_with_handle_or_url(handle=handle)
@@ -36,12 +38,10 @@ class FilepickerFile(object):
         self.set_security_secret(security_secret)
 
     def __init_with_dict(self, d):
-        if self.converted:
-            return
         self.url = d['url']
-        d['mimetype'] = d['type']
-        d.pop('type')
-        self.metadata = d
+        if d.get('type'):
+            d['mimetype'] = d.pop('type')
+            self.metadata = d
 
     def __init_with_handle_or_url(self, handle=None, url=None):
         if handle:
@@ -50,7 +50,10 @@ class FilepickerFile(object):
             self.url = url
 
     def __get_handle(self):
-        return re.search(r'file/(\w+)', self.url).group(1)
+        try:
+            return re.search(r'file/(\w+)', self.url).group(1)
+        except AttributeError:
+            raise Exception("Invalid file url")
 
     def set_api_key(self, api_key):
         self.api_key = api_key
@@ -88,18 +91,19 @@ class FilepickerFile(object):
             return response
 
     def overwrite(self, url=None, filepath=None, policy_name=None):
-        params, files = None, None
+        data, files, params = None, None, None
         if url:
-            params = {'url': url}
+            data = {'url': url}
         if filepath:
-            files = {'fileUpload': open(filepath, 'rb')}
-            params = {'mimetype': mimetypes.guess_type(filepath)}
+            filename = os.path.basename(filepath)
+            mimetype = mimetypes.guess_type(filepath)
+            files = {'fileUpload': (filename, open(filepath, 'rb'), mimetype)}
         if policy_name:
             params.update(self.policies[policy_name].signature_params())
-        return self.__post(self.url, files=files, params=params)
+        return self.__post(self.url, data=data, files=files, params=params)
 
     def convert(self, policy_name=None, **kwargs):
-        if self.converted:
+        if self.temporary:
             return "File already converted"
 
         storing_options = ['filename', 'storeLocation', 'storePath',
@@ -113,19 +117,22 @@ class FilepickerFile(object):
             kwargs['key'] = self.api_key
             return self.__post(self.url + '/convert', params=kwargs)
 
-        url = requests.get(self.url + '/convert', params=kwargs).url
-        return FilepickerFile(url=url, converted=True)
+        url = '{}/convert?{}'.format(self.url, urllib.urlencode(kwargs))
+        return FilepickerFile(url=url, temporary=True)
 
     def add_policy(self, name, policy):
+        if self.security_secret is None:
+            raise Exception("Please set security secret first")
         self.policies[name] = FilepickerPolicy(policy, self.security_secret)
 
     def get_signed_url(self, policy_name):
         params = self.policies[policy_name].signature_params()
         return self.url + '?' + urllib.urlencode(params)
 
-    def __post(self, url, files=None, **kwargs):
+    def __post(self, url, data=None, files=None, **kwargs):
         try:
-            r = requests.post(url, files=files, params=kwargs.get('params'))
+            r = requests.post(url, data=data, files=files,
+                              params=kwargs.get('params'))
             rd = json.loads(r.text)
             return FilepickerFile(
                     response_dict=rd, api_key=self.api_key,
