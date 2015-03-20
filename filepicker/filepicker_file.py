@@ -2,11 +2,15 @@ import mimetypes
 import json
 import re
 import os
-import urllib
+
+try:
+    import urllib.parse as parser
+except ImportError:
+    import urllib as parser
 
 import requests
 
-from filepicker_policy import FilepickerPolicy
+from .filepicker_policy import FilepickerPolicy
 
 
 class FilepickerFile(object):
@@ -118,7 +122,7 @@ class FilepickerFile(object):
             kwargs['key'] = self.api_key
             return self.__post(self.url + '/convert', params=kwargs)
 
-        url = '{}/convert?{}'.format(self.url, urllib.urlencode(kwargs))
+        url = '{}/convert?{}'.format(self.url, parser.urlencode(kwargs))
         return FilepickerFile(url=url, api_key=self.api_key,
                               app_secret=self.app_secret,
                               policies=self.policies,
@@ -131,7 +135,7 @@ class FilepickerFile(object):
 
     def get_signed_url(self, policy_name):
         params = self.policies[policy_name].signature_params()
-        return self.url + '?' + urllib.urlencode(params)
+        return self.url + '?' + parser.urlencode(params)
 
     def __post(self, url, data=None, files=None, **kwargs):
         try:

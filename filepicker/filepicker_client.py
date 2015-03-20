@@ -4,8 +4,8 @@ import os
 
 import requests
 
-from filepicker_file import FilepickerFile
-from filepicker_policy import FilepickerPolicy
+from .filepicker_file import FilepickerFile
+from .filepicker_policy import FilepickerPolicy
 
 
 class FilepickerClient(object):

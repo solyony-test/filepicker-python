@@ -1,20 +1,22 @@
-import unittest
+import unittest2
 import json
 import hmac
 import hashlib
 import base64
 import os
-import urllib
+
+try:
+    import urllib.parse as urllib
+except ImportError:
+    import urllib
 
 from httmock import urlmatch, HTTMock, all_requests
 import requests
 
-from filepicker_policy import FilepickerPolicy
-from filepicker_client import FilepickerClient
-from filepicker_file import FilepickerFile
+from filepicker import FilepickerPolicy, FilepickerFile, FilepickerClient
 
 
-class FilepickerPolicyTest(unittest.TestCase):
+class FilepickerPolicyTest(unittest2.TestCase):
 
     FILEHANDLE = 'eyJleHBYYYYYYYYYNTA4MTQxNTXXXX'
     APP_SECRET = 'ABCABCABCABC123123123123XX'
@@ -27,8 +29,9 @@ class FilepickerPolicyTest(unittest.TestCase):
     def test_signature_params(self):
         p = {'handle': self.FILEHANDLE, 'expiry': 1508141504}
         json_p = json.dumps(p)
-        expected_policy = base64.urlsafe_b64encode(json_p)
-        expected_signature = hmac.new(self.APP_SECRET, expected_policy,
+        expected_policy = base64.urlsafe_b64encode(json_p.encode('utf-8'))
+        expected_signature = hmac.new(self.APP_SECRET.encode('utf-8'),
+                                      expected_policy,
                                       hashlib.sha256).hexdigest()
         params = self.policy.signature_params()
 
@@ -36,7 +39,7 @@ class FilepickerPolicyTest(unittest.TestCase):
         self.assertEqual(params['policy'], expected_policy)
 
 
-class FilepickerClientTest(unittest.TestCase):
+class FilepickerClientTest(unittest2.TestCase):
 
     UPLOADED_FILE = {
         'url': "https://www.filepicker.io/api/file/hx6uhrXXXXXPIiWvl",
@@ -70,7 +73,8 @@ class FilepickerClientTest(unittest.TestCase):
         @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
                   scheme='https')
         def api_url(url, request):
-            return json.dumps(self.UPLOADED_FILE)
+            return {'status_code': 200,
+                    'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
 
         with HTTMock(api_url):
             file = self.client.store_from_url('filepicker.com/awesome.jpg')
@@ -86,7 +90,8 @@ class FilepickerClientTest(unittest.TestCase):
         @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
                   scheme='https')
         def api_url(url, request):
-            return json.dumps(self.UPLOADED_FILE)
+            return {'status_code': 200,
+                    'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
 
         with HTTMock(api_url):
             file = self.client.store_local_file(__file__)
@@ -132,9 +137,11 @@ class FilepickerClientTest(unittest.TestCase):
             if all(item in url.query for item in ['policy', 'signature']):
                 # just checking if policy and signature are added to query
                 # string, not the actual value
-                return json.dumps(self.UPLOADED_FILE)
+                return {'status_code': 200,
+                        'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
             else:
-                return secured_msg
+                return {'status_code': 200,
+                        'content': secured_msg.encode('utf-8')}
 
         self.client.set_app_secret('verysecuresecret')
 
@@ -143,7 +150,7 @@ class FilepickerClientTest(unittest.TestCase):
             response = self.client.store_from_url('filepicker.io/test.jpg')
 
         self.assertIsInstance(response, requests.Response)
-        self.assertEqual(response.text, secured_msg)
+        self.assertEqual(response.text, str(secured_msg))
 
         with HTTMock(require_signature):
             file = self.client.store_from_url('filepicker.io/test.jpg',
@@ -159,7 +166,9 @@ class FilepickerClientTest(unittest.TestCase):
         @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
                   scheme='https')
         def api_url(url, request):
-            return json.dumps(self.UPLOADED_FILE)
+            # return json.dumps(self.UPLOADED_FILE).encode('utf-8')
+            return {'status_code': 200,
+                    'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
 
         with HTTMock(api_url):
             file = self.client.store_local_file(__file__)
@@ -174,7 +183,9 @@ class FilepickerClientTest(unittest.TestCase):
         @urlmatch(netloc=r'www\.filepicker\.io', path='/api', method='post',
                   scheme='https')
         def api_url(url, request):
-            return json.dumps(self.UPLOADED_FILE)
+            # return json.dumps(self.UPLOADED_FILE).encode('utf-8')
+            return {'status_code': 200,
+                    'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
 
         with HTTMock(api_url):
             file = self.client.store_local_file(__file__)
@@ -184,7 +195,7 @@ class FilepickerClientTest(unittest.TestCase):
         self.assertEqual(file.app_secret, self.client.app_secret)
 
 
-class FilepickerFileTest(unittest.TestCase):
+class FilepickerFileTest(unittest2.TestCase):
 
     HANDLE = 'XXMadeUpHandleXX'
 
@@ -239,7 +250,9 @@ class FilepickerFileTest(unittest.TestCase):
         def metadata_url(url, request):
             for attr in self.file.METADATA_ATTRS:
                 self.assertIn('{}=true'.format(attr), url.query)
-            return json.dumps({'md5': '123abc'})
+            return {'status_code': 200,
+                    'content': json.dumps({'md5': '123abc'}).encode('utf-8')}
+
 
         with HTTMock(metadata_url):
             self.file.update_metadata()
@@ -252,7 +265,8 @@ class FilepickerFileTest(unittest.TestCase):
                   path='/api/file/{}'.format(self.HANDLE),
                   method='delete', scheme='https')
         def delete_file(url, request):
-            return 'success'
+            # return 'success'
+            return {'status_code': 200, 'content': 'success'.encode('utf-8')}
 
         self.assertEqual(self.file.api_key, None)
         self.assertEqual(self.file.delete(), 'Please set API key first')
@@ -273,13 +287,14 @@ class FilepickerFileTest(unittest.TestCase):
                   path='/api/file/{}'.format(self.HANDLE),
                   method='get', scheme='https')
         def download_file(url, request):
-            return "downloaded file content"
+            return {'status_code': 200, 'content': 'downloaded file content'.encode('utf-8')}
+            # return "downloaded file content"
 
         with HTTMock(download_file):
             self.file.download(dest_path)
 
         try:
-            with file(dest_path) as f:
+            with open(dest_path) as f:
                 self.assertEqual(f.read(), 'downloaded file content')
             os.remove(dest_path)
         except IOError as e:
@@ -297,14 +312,14 @@ class FilepickerFileTest(unittest.TestCase):
             if all(item in url.query for item in ['policy', 'signature']):
                 # just checking if policy and signature are added to query
                 # string, not the actual value
-                return "downloaded file content"
-            return secured_msg
+                return {'status_code': 200, 'content': 'downloaded file content'.encode('utf-8')}
+            return {'status_code': 200, 'content': secured_msg.encode('utf-8')}
 
         with HTTMock(download_file):
             self.file.download(dest_path)  # download with no policy
 
         try:
-            with file(dest_path) as f:
+            with open(dest_path) as f:
                 self.assertEqual(f.read(), secured_msg)
             os.remove(dest_path)
         except IOError as e:
@@ -317,7 +332,7 @@ class FilepickerFileTest(unittest.TestCase):
             self.file.download(dest_path, policy_name='newpolicy')
 
         try:
-            with file(dest_path) as f:
+            with open(dest_path) as f:
                 self.assertEqual(f.read(), 'downloaded file content')
             os.remove(dest_path)
         except IOError as e:
@@ -332,9 +347,10 @@ class FilepickerFileTest(unittest.TestCase):
             self.assertEqual(request.method, 'POST')
             self.assertIn(urllib.quote('somenew.url/new.png', ''),
                           request.body)
-            return json.dumps(
-                    {"url": "https://www.filepicker.io/api/file/ZXC",
-                     "filename": "name.jpg"})
+            j = {"url": "https://www.filepicker.io/api/file/ZXC",
+                 "filename": "name.jpg"}
+            return {'status_code': 200,
+                    'content': json.dumps(j).encode('utf-8')}
 
         with HTTMock(overwrite_file):
             self.file.overwrite(url='somenew.url/new.png')
@@ -343,10 +359,11 @@ class FilepickerFileTest(unittest.TestCase):
         def overwrite_file(url, request):
             self.assertEqual(request.url, self.file.url)
             self.assertEqual(request.method, 'POST')
-            self.assertIn('name="fileUpload"', request.body)
-            return json.dumps(
-                    {"url": "https://www.filepicker.io/api/file/ZXC",
-                     "filename": "name.jpg"})
+            self.assertIn('name="fileUpload"', str(request.body))
+            j = {"url": "https://www.filepicker.io/api/file/ZXC",
+                 "filename": "name.jpg"}
+            return {'status_code': 200,
+                    'content': json.dumps(j).encode('utf-8')}
 
         with HTTMock(overwrite_file):
             self.file.overwrite(filepath=__file__)
@@ -357,10 +374,9 @@ class FilepickerFileTest(unittest.TestCase):
 
     def test_convert(self):
         converted_file = self.file.convert(filter='blur', blurAmount=2, w=20)
-        self.assertEqual(
-                converted_file.url,
-                'https://www.filepicker.io/api/file/' +
-                'XXMadeUpHandleXX/convert?filter=blur&blurAmount=2&w=20')
+        self.assertRegexpMatches(converted_file.url, r'convert.+filter=blur')
+        self.assertRegexpMatches(converted_file.url, r'convert.+blurAmount=2')
+        self.assertRegexpMatches(converted_file.url, r'convert.+w=20')
         self.assertTrue(converted_file.temporary)
 
     def test_convert_and_store(self):
@@ -382,7 +398,8 @@ class FilepickerFileTest(unittest.TestCase):
             self.assertIn('w=10', url.query)
             self.assertIn('key=APIKEY', url.query)
             self.assertIn('storeLocation=Azure', url.query)
-            return json.dumps(fp_response)
+            return {'status_code': 200,
+                    'content': json.dumps(fp_response).encode('utf-8')}
 
         with HTTMock(convert_and_store):
             converted_file = self.file.convert(w=10, storeLocation='Azure')
@@ -407,7 +424,8 @@ class FilepickerFileTest(unittest.TestCase):
                   path='/api/file/{}/convert'.format(self.HANDLE),
                   method='post', scheme='https')
         def convert_and_store(url, request):
-            return json.dumps(fp_response)
+            return {'status_code': 200,
+                    'content': json.dumps(fp_response).encode('utf-8')}
 
         secret_before = self.file.app_secret
         self.file.set_app_secret('APPSECRET')
@@ -438,8 +456,11 @@ class FilepickerFileTest(unittest.TestCase):
         url = self.file.get_signed_url('new_policy')
         self.assertRegexpMatches(
                 url,
-                r'{}.+policy.+signature.+'.format(self.file.url))
+                r'{}.+signature.+'.format(self.file.url))
+        self.assertRegexpMatches(
+                url,
+                r'{}.+policy.+'.format(self.file.url))
 
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest2.main()
