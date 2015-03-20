@@ -11,7 +11,8 @@ class FilepickerPolicy(object):
         self.app_secret = app_secret
 
     def signature_params(self):
-        policy_enc = base64.urlsafe_b64encode(json.dumps(self.policy).encode('utf-8'))
+        policy_enc = base64.urlsafe_b64encode(
+                         json.dumps(self.policy).encode('utf-8'))
         signature = hmac.new(self.app_secret.encode('utf-8'),
                              policy_enc,
                              hashlib.sha256).hexdigest()

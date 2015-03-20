@@ -13,7 +13,7 @@ or directly from GitHub
 
     $ pip install git+https://github.com/filepicker/filepicker-python.git
 
-It will also install `requests` and `httmock` packages.
+It will also install `requests` package.
 
 # How to use it
 Filepicker library gives you access to two useful classes:

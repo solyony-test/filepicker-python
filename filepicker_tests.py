@@ -137,8 +137,9 @@ class FilepickerClientTest(unittest2.TestCase):
             if all(item in url.query for item in ['policy', 'signature']):
                 # just checking if policy and signature are added to query
                 # string, not the actual value
-                return {'status_code': 200,
-                        'content': json.dumps(self.UPLOADED_FILE).encode('utf-8')}
+                content = json.dumps(self.UPLOADED_FILE).encode('utf-8')
+                return {
+                    'status_code': 200, 'content': content}
             else:
                 return {'status_code': 200,
                         'content': secured_msg.encode('utf-8')}
@@ -253,7 +254,6 @@ class FilepickerFileTest(unittest2.TestCase):
             return {'status_code': 200,
                     'content': json.dumps({'md5': '123abc'}).encode('utf-8')}
 
-
         with HTTMock(metadata_url):
             self.file.update_metadata()
 
@@ -282,12 +282,13 @@ class FilepickerFileTest(unittest2.TestCase):
 
     def test_download(self):
         dest_path = 'delete_this_test_leftover'
+        f_content = 'downloaded file content'
 
         @urlmatch(netloc=r'www\.filepicker\.io',
                   path='/api/file/{}'.format(self.HANDLE),
                   method='get', scheme='https')
         def download_file(url, request):
-            return {'status_code': 200, 'content': 'downloaded file content'.encode('utf-8')}
+            return {'status_code': 200, 'content': f_content.encode('utf-8')}
             # return "downloaded file content"
 
         with HTTMock(download_file):
@@ -295,7 +296,7 @@ class FilepickerFileTest(unittest2.TestCase):
 
         try:
             with open(dest_path) as f:
-                self.assertEqual(f.read(), 'downloaded file content')
+                self.assertEqual(f.read(), f_content)
             os.remove(dest_path)
         except IOError as e:
             print("Looks like something went wrong: {}".format(e))
@@ -312,8 +313,10 @@ class FilepickerFileTest(unittest2.TestCase):
             if all(item in url.query for item in ['policy', 'signature']):
                 # just checking if policy and signature are added to query
                 # string, not the actual value
-                return {'status_code': 200, 'content': 'downloaded file content'.encode('utf-8')}
-            return {'status_code': 200, 'content': secured_msg.encode('utf-8')}
+                return {'status_code': 200,
+                        'content': 'downloaded file content'.encode('utf-8')}
+            return {'status_code': 200,
+                    'content': secured_msg.encode('utf-8')}
 
         with HTTMock(download_file):
             self.file.download(dest_path)  # download with no policy
