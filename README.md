@@ -21,7 +21,7 @@ Filepicker library gives you access to two useful classes:
 * `FilepickerClient` - for easy file upload (creates FilepickerFile objects)
 * `FilepickerFile` - for file handling (downloading, converting etc.)
 
-## Uploding files
+## Uploading files
 First, you need to create an instance of FilepickerClient
 
 ```python
