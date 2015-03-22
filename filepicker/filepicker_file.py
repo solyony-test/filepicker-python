@@ -37,7 +37,7 @@ class FilepickerFile(object):
             raise AttributeError('Please provide file handle or url')
 
         self.policies = policies
-        self.handle = handle if handle else self.__get_handle()
+        self.handle = handle or self.__get_handle()
         self.set_api_key(api_key)
         self.set_app_secret(app_secret)
 
