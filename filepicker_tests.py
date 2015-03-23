@@ -110,7 +110,8 @@ class FilepickerClientTest(unittest2.TestCase):
                 self.assertEqual(url.path, '/api/store/S3')
             else:
                 self.assertEqual(url.path, '/api/store/azure')
-            return json.dumps(self.UPLOADED_FILE)
+            content = json.dumps(self.UPLOADED_FILE)
+            return { 'status_code': 200, 'content': content}
 
         with HTTMock(api_url):
             self.client.store_from_url('example.com/default.jpg')

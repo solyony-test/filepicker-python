@@ -101,7 +101,7 @@ class FilepickerFile(object):
             data = {'url': url}
         if filepath:
             filename = os.path.basename(filepath)
-            mimetype = mimetypes.guess_type(filepath)
+            mimetype = mimetypes.guess_type(filepath)[0]
             files = {'fileUpload': (filename, open(filepath, 'rb'), mimetype)}
         if policy_name:
             params.update(self.policies[policy_name].signature_params())

@@ -39,7 +39,7 @@ class FilepickerClient(object):
     def store_local_file(self, filepath, storage=None,
                          policy_name=None, **kwargs):
         filename = os.path.basename(filepath)
-        mimetype = mimetypes.guess_type(filepath)
+        mimetype = mimetypes.guess_type(filepath)[0]
         files = {'fileUpload': (filename, open(filepath, 'rb'), mimetype)}
         params = {}
         if policy_name:
